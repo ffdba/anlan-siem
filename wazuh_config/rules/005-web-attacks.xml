@@ -1,0 +1,76 @@
+﻿<!--
+  安澜·SIEM 安全监测系统
+  规则组：Web 通用攻击检测
+  检测类型：XSS、远程文件包含(RFI)、本地文件包含(LFI)、命令注入、恶意文件上传、Web 扫描
+  MITRE ATT&CK: T1059 (Command/Scripting), T1190 (Exploit Public-Facing Application), T1505 (Server Software Component)
+-->
+<group name="web-attacks, xss, rfi, lfi, command-injection,">
+
+  <!-- XSS 跨站脚本攻击检测 -->
+  <rule id="100040" level="10">
+    <decoded_as>web-access-log</decoded_as>
+    <field name="url">(?i)(<script|<iframe|alert\(|onerror=|onload=|onclick=|javascript:|%3Cscript|%3Ciframe|%3Csvg)</field>
+    <description>检测到跨站脚本攻击 (XSS)</description>
+    <mitre>
+      <id>T1059</id>
+    </mitre>
+    <group>web_attack,xss,</group>
+  </rule>
+
+  <!-- 远程文件包含检测（RFI） -->
+  <rule id="100041" level="10">
+    <decoded_as>web-access-log</decoded_as>
+    <field name="url">(?i)(include=|require=|include_once=|require_once=)(http|ftp)</field>
+    <description>检测到远程文件包含攻击 (RFI)</description>
+    <mitre>
+      <id>T1190</id>
+    </mitre>
+    <group>web_attack,rfi,</group>
+  </rule>
+
+  <!-- 本地文件包含检测（LFI） -->
+  <rule id="100042" level="9">
+    <decoded_as>web-access-log</decoded_as>
+    <field name="url">(?i)(file=|page=|dir=|document=|folder=|root=|path=|include=|show=|view=)(\.\./|/etc/|/var/|/proc/|\.php)</field>
+    <description>检测到本地文件包含攻击 (LFI)</description>
+    <mitre>
+      <id>T1190</id>
+    </mitre>
+    <group>web_attack,lfi,</group>
+  </rule>
+
+  <!-- 命令注入检测 -->
+  <rule id="100043" level="12">
+    <decoded_as>web-access-log</decoded_as>
+    <field name="url">(?i)(\||;|\x60|cmd=|exec=|shell=|system\(|passthru\(|popen\(|`|%0A|%0D|%7C)</field>
+    <description>检测到命令注入攻击</description>
+    <mitre>
+      <id>T1203</id>
+    </mitre>
+    <group>web_attack,command_injection,</group>
+  </rule>
+
+  <!-- 可疑文件上传检测 -->
+  <rule id="100044" level="8">
+    <decoded_as>web-access-log</decoded_as>
+    <field name="http_method">POST|PUT</field>
+    <field name="url">(?i)(\.php|\.jsp|\.asp|\.aspx|\.phtml|\.cgi|\.pl|\.py|\.sh)</field>
+    <description>检测到可疑文件上传 - 可执行脚本扩展名</description>
+    <mitre>
+      <id>T1505</id>
+    </mitre>
+    <group>web_attack,file_upload,</group>
+  </rule>
+
+  <!-- Web 扫描器检测：同一 IP 大量 404 -->
+  <rule id="100045" level="7" frequency="20" timeframe="120">
+    <decoded_as>web-access-log</decoded_as>
+    <field name="status_code">404</field>
+    <description>检测到 Web 扫描 - 单 IP 大量 404 响应</description>
+    <group>web_attack,reconnaissance,scanning,</group>
+    <mitre>
+      <id>T1595</id>
+    </mitre>
+  </rule>
+
+</group>

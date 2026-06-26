@@ -1,0 +1,24 @@
+﻿<!--
+  安澜·SIEM 安全监测系统
+  通用 Web 日志解码器
+  支持标准 Combined Log Format (CLF)
+-->
+<decoder name="web-access-log">
+    <prematch>^\d+\.\d+\.\d+\.\d+ </prematch>
+</decoder>
+
+<decoder name="web-access-log-detail">
+    <parent>web-access-log</parent>
+    <regex>^(\d+\.\d+\.\d+\.\d+) \S+ \S+ \[(\S+ \S+)\] "(\w+) (\S+) [^"]*" (\d+) (\d+) "([^"]*)" "([^"]*)"</regex>
+    <order>srcip, timestamp, http_method, url, status_code, size, referer, user_agent</order>
+</decoder>
+
+<decoder name="web-error-log">
+    <prematch>\[error\]</prematch>
+</decoder>
+
+<decoder name="web-error-log-detail">
+    <parent>web-error-log</parent>
+    <regex>^\[[^ ]+ ([^]]+)\] \[(\w+)\] \[client (\d+\.\d+\.\d+\.\d+)\] (.*)$</regex>
+    <order>timestamp, error_level, srcip, error_message</order>
+</decoder>

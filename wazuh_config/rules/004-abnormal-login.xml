@@ -1,0 +1,67 @@
+﻿<!--
+  安澜·SIEM 安全监测系统
+  规则组：异常登录与系统安全监控
+  检测类型：Root 直连、非工作时间登录、用户枚举、权限提升、用户创建
+  MITRE ATT&CK: T1078 (Valid Accounts), T1548 (Abuse Elevation Control), T1136 (Create Account)
+-->
+<group name="authentication, abnormal-login, security,">
+
+  <!-- 检测 root 用户直接通过 SSH 登录 -->
+  <rule id="100030" level="5">
+    <if_matched_group>authentication_success</if_matched_group>
+    <field name="srcuser">root</field>
+    <description>Root SSH 登录 - 检测到直接使用 root 账号 SSH 登录</description>
+    <group>authentication,ssh,privileged_access,</group>
+    <mitre>
+      <id>T1078</id>
+    </mitre>
+  </rule>
+
+  <!-- 周末登录检测 -->
+  <rule id="100031" level="5">
+    <if_matched_group>authentication_success</if_matched_group>
+    <description>异常登录时间 - 周末登录行为</description>
+    <weekday>saturday,sunday</weekday>
+    <group>authentication,abnormal,time_anomaly,</group>
+  </rule>
+
+  <!-- 深夜登录检测（0:00-6:00） -->
+  <rule id="100032" level="5">
+    <if_matched_group>authentication_success</if_matched_group>
+    <description>异常登录时间 - 深夜登录行为</description>
+    <time>0:00-6:00</time>
+    <group>authentication,abnormal,time_anomaly,</group>
+  </rule>
+
+  <!-- 用户枚举攻击检测：同一 IP 尝试多个不同用户名 -->
+  <rule id="100033" level="7" frequency="5" timeframe="60">
+    <if_matched_group>authentication_failed</if_matched_group>
+    <description>检测到用户枚举攻击 - 同一来源尝试多个用户名</description>
+    <group>authentication,enumeration,reconnaissance,</group>
+    <mitre>
+      <id>T1589</id>
+    </mitre>
+  </rule>
+
+  <!-- Sudo 提权检测 -->
+  <rule id="100034" level="5">
+    <if_matched_group>sudo</if_matched_group>
+    <match>session opened for user root</match>
+    <description>检测到权限提升 - 使用 sudo 切换到 root</description>
+    <group>system,privilege_escalation,sudo,</group>
+    <mitre>
+      <id>T1548</id>
+    </mitre>
+  </rule>
+
+  <!-- 新用户创建检测 -->
+  <rule id="100035" level="8">
+    <if_matched_group>useradd,groupadd</if_matched_group>
+    <description>检测到新用户创建 - 可能存在持久化后门</description>
+    <group>system,persistence,account_creation,</group>
+    <mitre>
+      <id>T1136</id>
+    </mitre>
+  </rule>
+
+</group>

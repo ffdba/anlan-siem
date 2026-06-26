@@ -1,0 +1,54 @@
+﻿<!--
+  安澜·SIEM 安全监测系统
+  规则组：SQL 注入检测
+  检测类型：关键词注入、布尔盲注、时间盲注、认证绕过
+  MITRE ATT&CK: T1190 (Exploit Public-Facing Application)
+-->
+<group name="web-attacks, sql-injection,">
+
+  <!-- 检测 URL 中包含 SQL 关键词（SELECT FROM, UNION SELECT, DROP TABLE 等） -->
+  <rule id="100001" level="12">
+    <decoded_as>web-access-log</decoded_as>
+    <field name="url">(?i)(\bSELECT\b.*\bFROM\b|\bUNION\b.*\bSELECT\b|\bINSERT\b.*\bINTO\b|\bDELETE\b.*\bFROM\b|\bDROP\b.*\bTABLE\b|\bALTER\b.*\bTABLE\b|\bCREATE\b.*\bTABLE\b|\bEXEC\b|\bEXECUTE\b|\bxp_cmdshell\b)</field>
+    <description>检测到 SQL 注入攻击 - URL 中包含 SQL 关键词</description>
+    <mitre>
+      <id>T1190</id>
+    </mitre>
+    <options>no_full_log</options>
+    <group>web_attack,sql_injection,</group>
+  </rule>
+
+  <!-- 检测布尔盲注/永真条件（or 1=1, and 1=1, ' OR '1'='1） -->
+  <rule id="100002" level="12">
+    <decoded_as>web-access-log</decoded_as>
+    <field name="url">(?i)(\bor\b\s+\d+=\d+|\band\b\s+\d+=\d+|\bOR\b\s+'1'='1'|\'--|%27--|\bUNION\b|\%27\bOR\b)</field>
+    <description>检测到 SQL 注入攻击 - 布尔盲注/永真条件</description>
+    <mitre>
+      <id>T1190</id>
+    </mitre>
+    <group>web_attack,sql_injection,</group>
+  </rule>
+
+  <!-- 检测时间盲注（sleep, waitfor delay, pg_sleep, benchmark） -->
+  <rule id="100003" level="12">
+    <decoded_as>web-access-log</decoded_as>
+    <field name="url">(?i)(sleep\(\d+\)|waitfor\s+delay|pg_sleep|benchmark\(|%28sleep%28|%29--)</field>
+    <description>检测到 SQL 注入攻击 - 时间盲注</description>
+    <mitre>
+      <id>T1190</id>
+    </mitre>
+    <group>web_attack,sql_injection,</group>
+  </rule>
+
+  <!-- 检测认证绕过尝试（admin' --, OR 1=1 绕过登录） -->
+  <rule id="100004" level="12">
+    <decoded_as>web-access-log</decoded_as>
+    <field name="url">(?i)(\badmin'\b|\'%20OR%20\'1\'=\'1|%22%20OR%20%221%22=%221%22|information_schema|%27%20OR%20%27x%27=%27x%27)</field>
+    <description>检测到 SQL 注入攻击 - 认证绕过尝试</description>
+    <mitre>
+      <id>T1190</id>
+    </mitre>
+    <group>web_attack,sql_injection,</group>
+  </rule>
+
+</group>

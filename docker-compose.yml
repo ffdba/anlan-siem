@@ -1,0 +1,69 @@
+﻿services:
+  # Wazuh Indexer - OpenSearch 搜索引擎集群节点
+  wazuh.indexer:
+    image: wazuh/wazuh-indexer:4.9.0
+    hostname: wazuh-indexer
+    container_name: wazuh-indexer
+    environment:
+      - "OPENSEARCH_JAVA_OPTS=-Xms1g -Xmx1g"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    ports:
+      - "9200:9200"
+    volumes:
+      - wazuh-indexer-data:/var/lib/wazuh-indexer
+    networks:
+      - anlan-network
+
+  # Wazuh Server - 中央管理器 + 规则引擎
+  wazuh.server:
+    image: wazuh/wazuh-manager:4.9.0
+    hostname: wazuh-server
+    container_name: wazuh-server
+    environment:
+      - "WAZUH_MONITORING_ENABLED=true"
+      - "INDEXER_URL=https://wazuh-indexer:9200"
+    ports:
+      - "55000:55000/tcp"
+      - "1514:1514/udp"
+      - "1515:1515/tcp"
+      - "1516:1516/tcp"
+    volumes:
+      - wazuh-manager-data:/var/ossec/data
+      - ./wazuh_config/decoders:/var/ossec/etc/decoders:ro
+      - ./wazuh_config/rules:/var/ossec/etc/rules:ro
+    depends_on:
+      - wazuh.indexer
+    networks:
+      - anlan-network
+
+  # Wazuh Dashboard - 安全事件可视化面板
+  wazuh.dashboard:
+    image: wazuh/wazuh-dashboard:4.9.0
+    hostname: wazuh-dashboard
+    container_name: wazuh-dashboard
+    environment:
+      - "OPENSEARCH_HOSTS=https://wazuh-indexer:9200"
+      - "DASHBOARD_SERVER_HOST=0.0.0.0"
+    ports:
+      - "443:5601"
+    volumes:
+      - wazuh-dashboard-data:/usr/share/wazuh-dashboard/data
+    depends_on:
+      - wazuh.server
+    networks:
+      - anlan-network
+
+networks:
+  anlan-network:
+    driver: bridge
+
+volumes:
+  wazuh-indexer-data:
+  wazuh-manager-data:
+  wazuh-dashboard-data:

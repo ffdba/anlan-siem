@@ -1,0 +1,72 @@
+﻿<!--
+  安澜·SIEM 安全监测系统
+  规则组：暴力破解检测
+  检测类型：SSH 暴力破解（三级阈值）、Web 登录爆破、FTP 爆破
+  MITRE ATT&CK: T1110 (Brute Force), T1078 (Valid Accounts)
+-->
+<group name="authentication, brute-force, ssh,">
+
+  <!-- SSH 暴力破解检测 - 8次失败/120秒 -->
+  <rule id="100020" level="10" frequency="8" timeframe="120" ignore="60">
+    <if_matched_group>authentication_failed</if_matched_group>
+    <description>检测到 SSH 暴力破解 - 同一来源多次登录失败</description>
+    <group>authentication,brute_force,ssh,</group>
+    <mitre>
+      <id>T1110</id>
+    </mitre>
+  </rule>
+
+  <!-- SSH 暴力破解检测 - 20次失败/300秒（持续性攻击） -->
+  <rule id="100021" level="12" frequency="20" timeframe="300" ignore="120">
+    <if_matched_group>authentication_failed</if_matched_group>
+    <description>检测到 SSH 暴力破解 - 持续性攻击</description>
+    <group>authentication,brute_force,ssh,</group>
+    <mitre>
+      <id>T1110</id>
+    </mitre>
+  </rule>
+
+  <!-- SSH 暴力破解检测 - 50次失败/600秒（大规模协同攻击） -->
+  <rule id="100022" level="14" frequency="50" timeframe="600" ignore="300">
+    <if_matched_group>authentication_failed</if_matched_group>
+    <description>检测到 SSH 暴力破解 - 大规模协同攻击</description>
+    <group>authentication,brute_force,ssh,</group>
+    <mitre>
+      <id>T1110</id>
+    </mitre>
+  </rule>
+
+  <!-- 暴力破解成功后成功登录 - 账号失陷告警 -->
+  <rule id="100023" level="7">
+    <if_sid>100020, 100021, 100022</if_sid>
+    <if_matched_group>authentication_success</if_matched_group>
+    <description>SSH 暴力破解成功 - 检测到账号可能失陷</description>
+    <group>authentication,brute_force,ssh,compromise,</group>
+    <mitre>
+      <id>T1078</id>
+    </mitre>
+  </rule>
+
+  <!-- Web 登录爆破检测 -->
+  <rule id="100024" level="8" frequency="15" timeframe="180" ignore="60">
+    <decoded_as>web-access-log</decoded_as>
+    <field name="url">(?i)(/login|/wp-login|/signin|/auth|/admin/login|/user/login)</field>
+    <match>401|403</match>
+    <description>检测到 Web 登录爆破 - 登录接口多次鉴权失败</description>
+    <group>authentication,brute_force,web,</group>
+    <mitre>
+      <id>T1110</id>
+    </mitre>
+  </rule>
+
+  <!-- FTP 暴力破解检测 -->
+  <rule id="100025" level="8" frequency="10" timeframe="180" ignore="60">
+    <if_matched_group>ftp,failed</if_matched_group>
+    <description>检测到 FTP 暴力破解攻击</description>
+    <group>authentication,brute_force,ftp,</group>
+    <mitre>
+      <id>T1110</id>
+    </mitre>
+  </rule>
+
+</group>

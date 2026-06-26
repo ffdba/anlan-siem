@@ -1,0 +1,19 @@
+﻿<!--
+  安澜·SIEM 安全监测系统
+  Apache HTTP Server 专用解码器
+-->
+<decoder name="apache-access-log">
+    <prematch>^(\d+\.\d+\.\d+\.\d+) </prematch>
+    <regex>^(\d+\.\d+\.\d+\.\d+) \S+ \S+ \[([^\]]+)\] "(\S+) (\S+)(?: [^"]*)?" (\d+) (\d+)$</regex>
+    <order>srcip, timestamp, request_method, request_path, status_code, response_size</order>
+</decoder>
+
+<decoder name="apache-error-log">
+    <prematch>(PHP (Fatal|Parse|Warning|Notice)|WordPress|mod_security)</prematch>
+</decoder>
+
+<decoder name="apache-error-log-detail">
+    <parent>apache-error-log</parent>
+    <regex>^\[[^ ]+ ([^]]+)\] \[(\w+:\w+)\] \[pid \d+\] \[client (\d+\.\d+\.\d+\.\d+):\d+\] (.*)$</regex>
+    <order>timestamp, module, srcip, error_message</order>
+</decoder>
