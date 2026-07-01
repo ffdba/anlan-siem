@@ -116,7 +116,7 @@
 
 ```bash
 # 1. 克隆项目
-git clone https://github.com/<你的用户名>/anlan-siem.git
+git clone https://github.com/ffdba/anlan-siem.git
 cd anlan-siem
 
 # 2. 启动 Wazuh 集群
