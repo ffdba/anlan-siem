@@ -1,4 +1,4 @@
-﻿<!--
+<!--
   安澜·SIEM 安全监测系统
   规则组：目录扫描与路径穿越检测
   检测类型：敏感路径探测、路径穿越、目录爆破
@@ -7,31 +7,31 @@
 <group name="web-attacks, directory-scanning,">
 
   <!-- 检测访问常见敏感路径（后台、管理面板、配置文件等） -->
-  <rule id="100010" level="8">
-    <decoded_as>web-access-log</decoded_as>
-    <field name="url">(?i)(/admin|/wp-admin|/phpmyadmin|/manager/html|/console|/backup|/config|/.git|/.env|/server-status|/actuator)</field>
-    <description>检测到目录扫描 - 敏感路径访问尝试</description>
+  <rule id="100010" level="3">
+    <if_sid>100000,100005,100006</if_sid>
+    <field name="url" type="pcre2">(?i)^/(?:admin|wp-admin|phpmyadmin|manager/html|console|backup|config|\.git|\.env|server-status|actuator)(?:[/.?]|$)</field>
+    <description>敏感路径访问线索，单次请求不证明目录扫描</description>
     <mitre>
       <id>T1595</id>
     </mitre>
-    <group>web_attack,reconnaissance,</group>
+    <group>web_context,anlan_sensitive_path,</group>
   </rule>
 
   <!-- 检测高价值目标访问（wp-admin, phpmyadmin, console 等） -->
-  <rule id="100011" level="10">
+  <rule id="100011" level="4">
     <if_sid>100010</if_sid>
-    <field name="url">(?i)(/wp-admin|/phpmyadmin|/console|/actuator)</field>
-    <description>检测到目录扫描 - 高价值目标访问尝试</description>
+    <field name="url" type="pcre2">(?i)^/(?:wp-admin|phpmyadmin|console|actuator)(?:[/?]|$)</field>
+    <description>管理接口访问线索，需结合授权与频率审阅</description>
     <mitre>
       <id>T1595</id>
     </mitre>
-    <group>web_attack,reconnaissance,</group>
+    <group>web_context,anlan_sensitive_path,</group>
   </rule>
 
   <!-- 检测路径穿越（../, %2e%2e/, ../../../ 等） -->
   <rule id="100012" level="7">
-    <decoded_as>web-access-log</decoded_as>
-    <field name="url">(?i)(\.\./|%2e%2e/|%2e%2e%2f|path Traversal|/../../../)</field>
+    <if_sid>100000,100005,100006</if_sid>
+    <field name="url" type="pcre2">(?i)(?:\.\.|%2e%2e)(?:/|%2f|%5c)</field>
     <description>检测到路径穿越攻击</description>
     <mitre>
       <id>T1190</id>
@@ -41,8 +41,8 @@
 
   <!-- 检测针对已知敏感文件的路径穿越（/etc/passwd, /etc/shadow 等） -->
   <rule id="100013" level="9">
-    <decoded_as>web-access-log</decoded_as>
-    <field name="url">(?i)(/etc/passwd|/etc/shadow|/windows/win\.ini|/boot\.ini|\.\./\.\./\.\./)</field>
+    <if_sid>100000,100005,100006</if_sid>
+    <field name="url" type="pcre2">(?i)(?:/|%2f)(?:etc(?:/|%2f)(?:passwd|shadow)|windows(?:/|%2f)win\.ini|boot\.ini)</field>
     <description>检测到路径穿越攻击 - 针对已知敏感文件</description>
     <mitre>
       <id>T1190</id>
@@ -50,11 +50,13 @@
     <group>web_attack,path_traversal,</group>
   </rule>
 
-  <!-- 聚合规则：同一 IP 在短时间内访问多个敏感路径 -->
+  <!-- 聚合规则：同一 IP 在短时间内重复访问敏感路径，不保证路径不同 -->
   <rule id="100014" level="10" frequency="12" timeframe="120">
-    <if_matched_sid>100010</if_matched_sid>
+    <if_matched_group>anlan_sensitive_path</if_matched_group>
+    <same_srcip />
     <description>检测到目录爆破攻击 - 单 IP 大量敏感路径探测</description>
     <group>web_attack,reconnaissance,directory_bruteforce,</group>
+    <mitre><id>T1595</id></mitre>
   </rule>
 
 </group>

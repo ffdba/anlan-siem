@@ -1,93 +1,63 @@
-﻿# 安澜·SIEM 安全监测系统 - 排错指南
+# 排错与验证边界
 
-## 常见问题与解决方案
+## 离线命令失败
 
-### Docker 部署问题
-
-**问题：Wazuh Indexer 启动失败**
-```bash
-# 查看容器日志
-docker logs wazuh-indexer
-# 检查内存使用
-docker stats wazuh-indexer
-# 解决方法：增加宿主机 vm.max_map_count
-# Linux: sudo sysctl -w vm.max_map_count=262144
-```
-
-**问题：容器不断重启**
-```bash
-# 查看容器日志
-docker logs wazuh-server
-# 常见原因：等待 Indexer 初始化时间不足
-# 解决方法：延长等待时间后重启
-docker-compose restart wazuh.server
-```
-
-### 规则开发问题
-
-**问题：规则未触发**
-```bash
-# 1. 检查解码器是否先匹配成功
-echo '<样本日志>' | docker exec -i wazuh-server /var/ossec/bin/wazuh-logtest
-# 2. 检查规则 XML 语法
-docker exec wazuh-server /var/ossec/bin/wazuh-logtest -a
-# 3. 确认规则 ID 无冲突（自定义使用 100000+）
-```
-
-**问题：误报率过高**
-```
-解决方案：
-- 使用更精确的正则表达式
-- 添加 AND 条件（多个 field 条件）
-- 调整频率阈值
-- 增加告警忽略时间
-- 添加 NOT 排除条件
-```
-
-### 解码器问题
-
-**问题：日志未被解析**
-```bash
-# 开启解码器调试日志
-docker exec wazuh-server sed -i 's/<logall>no/<logall>yes/' /var/ossec/etc/ossec.conf
-docker exec wazuh-server /var/ossec/bin/wazuh-control restart
-# 查看调试输出
-docker exec wazuh-server tail -f /var/ossec/logs/decoders/debug.log
-```
-
-### Dashboard 问题
-
-**问题：Dashboard 无数据**
-```bash
-# 验证是否生成告警
-docker exec wazuh-server tail -f /var/ossec/logs/alerts/alerts.json
-# 检查 Filebeat 连接
-docker exec wazuh-server filebeat test output
-# 检查 Indexer 索引
-curl -k -u admin:admin https://localhost:9200/_cat/indices
-```
-
-## 常用命令速查
+先在仓库根目录执行：
 
 ```bash
-# 查看 Wazuh 管理器状态
-docker exec wazuh-server /var/ossec/bin/wazuh-control status
-
-# 查看实时告警（JSON 格式）
-docker exec wazuh-server tail -f /var/ossec/logs/alerts/alerts.json | jq .
-
-# 重启 Wazuh 管理器
-docker exec wazuh-server /var/ossec/bin/wazuh-control restart
-
-# 列出已加载规则
-docker exec wazuh-server /var/ossec/bin/wazuh-logtest -l
-
-# 按规则 ID 统计告警数量
-docker exec wazuh-server cat /var/ossec/logs/alerts/alerts.json | jq -r '.rule.id' | sort | uniq -c | sort -rn
-
-# 查看事件统计
-docker exec wazuh-server cat /var/ossec/logs/stats/total_events.log
-
-# 交互式日志测试
-docker exec -it wazuh-server /var/ossec/bin/wazuh-logtest
+python --version
+python -S -m anlan validate
+python -m unittest discover -s tests -v
 ```
+
+需要 Python 3.10+。没有第三方 Python 依赖；`-S` 禁用 site-packages，方便确认离线命令不依赖本机额外包。
+
+输入报错应定位报告/终端中的文件行号，检查 timezone、manager、agent、rule 和 `data.srcip`。不能为了“跑通”而给所有缺失主机填同一个 ID；缺少身份的输入不满足隔离契约。
+
+## XML 通过但规则不命中
+
+XML 可解析不证明 Wazuh 接受所有规则语义。使用真实引擎断言：
+
+```bash
+python scripts/verify-logtest.py --container YOUR_TEST_MANAGER
+```
+
+查看 `output/logtest-results.json` 中的原生输出：
+
+1. Phase 2 是否是预期 decoder，字段是否完整？
+2. 是否在受控采集/重放中加入了正确的 `ANLAN_*` 来源前缀？
+3. Phase 3 是否匹配基础规则或某条更早/更具体的规则？
+4. 关联案例是否在同一个会话中输入，来源和历史事件是否一致？
+5. 是否使用本项目目标版本和同一份配置？
+
+别把 Python `re` 的样本检查当作 PCRE2 / Wazuh 验证，也别因为原生工具缺失而跳过断言后返回成功。
+
+## 误报与漏报
+
+先保存原始输入和 Phase 2/3 输出，再增加正常行为反例。管理接口访问、认证重试及批准扫描不直接证明攻击；需要临时降噪时明确规则、部署、主机、来源、有效期和工单。
+
+URL 规则不解析请求体，不覆盖全部编码与绕过。对真实流量的检测率、误报率、性能和业务影响应另外测量，不能从合成样本外推。
+
+## Compose 或 Dashboard 不可用
+
+本仓库 Compose 是未完成的实验模板。证书缺失、Indexer 未初始化、凭据不一致、Filebeat 没配置都会使完整链路失败，等待固定秒数不能解决这些问题。
+
+在自建测试环境中先检查：
+
+```bash
+docker compose config --quiet
+docker compose ps
+docker logs YOUR_TEST_MANAGER
+docker exec YOUR_TEST_MANAGER /var/ossec/bin/wazuh-control status
+docker exec YOUR_TEST_MANAGER filebeat test output
+```
+
+按 Wazuh 官方对应版本配置 TLS 和权限，不使用硬编码默认口令或跳过 TLS 验证作为修复。宿主内核参数、凭据、配置与服务重启需由环境负责人批准。
+
+启动前必须查宿主监听，发现冲突应选择其他获准端口，而不是结束占用者。WSL / Docker Desktop 需要额外检查 Windows 宿主：
+
+```powershell
+Get-NetTCPConnection -LocalPort 9200,9443,55000,15140,15150 -State Listen -ErrorAction SilentlyContinue
+```
+
+测试脚本不启动容器、不修改生产配置、不自动重启或结束其他进程。

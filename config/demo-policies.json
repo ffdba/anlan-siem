@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "suppressions": [
+    {
+      "id": "demo-approved-scanner",
+      "rule_ids": ["100014"],
+      "agent_ids": ["001"],
+      "manager_names": ["lab-manager"],
+      "source_cidrs": ["192.0.2.50/32"],
+      "starts_at": "2026-11-19T09:00:00+08:00",
+      "expires_at": "2026-11-19T10:00:00+08:00",
+      "reason": "Synthetic approved scan during a documented maintenance window.",
+      "owner": "demo-soc",
+      "ticket": "DEMO-001"
+    },
+    {
+      "id": "demo-expired-exception",
+      "rule_ids": ["100030"],
+      "agent_ids": ["001"],
+      "manager_names": ["lab-manager"],
+      "source_cidrs": ["192.0.2.50/32"],
+      "starts_at": "2026-11-18T09:00:00+08:00",
+      "expires_at": "2026-11-18T10:00:00+08:00",
+      "reason": "Expired synthetic maintenance exemption; must not suppress current alerts.",
+      "owner": "demo-soc",
+      "ticket": "DEMO-000"
+    }
+  ]
+}

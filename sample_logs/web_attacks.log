@@ -1,0 +1,4 @@
+ANLAN_WEB 203.0.113.10 - - [19/Nov/2026:09:00:00 +0800] "GET /search?q=UNION%20SELECT%20demo HTTP/1.1" 403 120
+ANLAN_WEB 203.0.113.10 - - [19/Nov/2026:09:00:01 +0800] "GET /search?q=%3Cscript%3Edemo HTTP/1.1" 403 120
+ANLAN_APACHE 192.0.2.10 - - [19/Nov/2026:09:00:02 +0800] "POST /login.php HTTP/1.1" 200 120 "-" "demo-client"
+ANLAN_NGINX 2001:db8::10 - - [19/Nov/2026:09:00:03 +0800] "GET /search?q=union HTTP/1.1" 200 120 "-" "demo-client"

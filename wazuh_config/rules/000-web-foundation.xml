@@ -1,0 +1,35 @@
+<!-- Base events stay above level 0 so Wazuh can retain correlation history. -->
+<group name="anlan,web,">
+  <rule id="100000" level="1">
+    <decoded_as>web-access-log</decoded_as>
+    <description>Anlan normalized Web access event.</description>
+    <group>anlan_web,</group>
+  </rule>
+
+  <rule id="100005" level="1">
+    <decoded_as>apache-access-log</decoded_as>
+    <description>Anlan normalized Apache access event.</description>
+    <group>anlan_web,</group>
+  </rule>
+
+  <rule id="100006" level="1">
+    <decoded_as>nginx-access-log</decoded_as>
+    <description>Anlan normalized Nginx access event.</description>
+    <group>anlan_web,</group>
+  </rule>
+
+  <rule id="100026" level="1">
+    <if_sid>100000,100005,100006</if_sid>
+    <field name="url" type="pcre2">(?i)^/(?:login(?:\.php)?|wp-login\.php|signin|auth|admin/login|user/login)(?:[/?]|$)</field>
+    <field name="status_code" type="pcre2">^(?:401|403)$</field>
+    <description>Anlan Web authentication failure event.</description>
+    <group>anlan_web_auth_failure,</group>
+  </rule>
+
+  <rule id="100046" level="1">
+    <if_sid>100000,100005,100006</if_sid>
+    <field name="status_code" type="pcre2">^404$</field>
+    <description>Anlan Web not-found event.</description>
+    <group>anlan_web_not_found,</group>
+  </rule>
+</group>

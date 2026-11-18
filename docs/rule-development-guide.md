@@ -1,149 +1,62 @@
-﻿# 安澜·SIEM 安全监测系统 - 规则开发指南
+# 检测规则开发
 
-## 概述
+## 单事件与历史事件
 
-本文档记录了 Wazuh 检测规则的开发方法、语法规范和最佳实践。规则使用 XML 编写，遵循 Wazuh 规则引擎语法。
-
-## 规则结构
+当前事件条件使用 `if_sid` / `if_group`，历史关联使用 `if_matched_sid` / `if_matched_group`。二者不互换。
 
 ```xml
-<rule id="100001" level="12" frequency="5" timeframe="120" ignore="60">
-    <if_matched_group>authentication_failed</if_matched_group>
-    <field name="url">(?i)(SELECT.*FROM|UNION.*SELECT)</field>
-    <description>检测到 SQL 注入攻击</description>
-    <group>web_attack,sql_injection,</group>
-    <mitre>
-        <id>T1190</id>
-    </mitre>
-    <options>no_full_log</options>
+<!-- 基础事件非零等级，允许保留历史 -->
+<rule id="100046" level="1">
+  <if_sid>100000,100005,100006</if_sid>
+  <field name="status_code" type="pcre2">^404$</field>
+  <description>Anlan Web not-found event.</description>
+  <group>anlan_web_not_found,</group>
+</rule>
+
+<!-- 当前配置中的同源关联 -->
+<rule id="100045" level="7" frequency="20" timeframe="120">
+  <if_matched_sid>100046</if_matched_sid>
+  <same_srcip />
+  <description>Repeated not-found events from one source.</description>
+  <group>web_attack,reconnaissance,scanning,</group>
+  <mitre><id>T1595</id></mitre>
 </rule>
 ```
 
-### 关键属性说明
+这里只展示规则片段，须置于 group 容器内。Wazuh 的计数、历史保留、`ignore` 和规则优先级由原生引擎决定；不能用 Python 正则匹配或简单计数器声称已验证 frequency 行为。原生序列样本以真实触发结果为准。
 
-| 属性 | 说明 | 示例 |
-|------|------|------|
-| `id` | 规则唯一 ID（自定义规则使用 100000+） | `100001` |
-| `level` | 告警级别 0-15 | `12` |
-| `frequency` | 在时间窗口内触发次数 | `5` |
-| `timeframe` | 时间窗口（秒） | `120` |
-| `ignore` | 匹配后忽略同一来源的秒数 | `60` |
+## 当前约束
 
-### 告警级别定义
+- 自定义 ID 使用 Wazuh 建议范围 `100000` 至 `120000`，本仓库不允许重复。
+- `decoded_as` 是实际 decoder 名称，不是用 `|` 拼接的候选列表。
+- Web 条件只使用统一字段；`field` 正则显式指定 PCRE2。
+- 关联规则必须有历史选择器、正频率/时间窗口、源 IP 隔离。
+- 用户枚举使用 `different_user`；它表达原生不同用户条件，不等于自行实现的“精确 N 个唯一用户名”。
+- SSH root 登录读取认证成功事件中的 `dstuser`，不是用认证失败作为成功事件。
+- 高等级规则需检查 ATT&CK 映射；基础事件、周末/深夜上下文等可不映射。
+- 顶层 group 不应包含所有攻击类别，否则 RFI、命令注入等事件也会继承 `xss` 标签。
 
-| 级别 | 分类 | 说明 |
-|------|------|------|
-| 0-2 | 信息 | 普通事件信息 |
-| 3-5 | 关注 | 值得注意但不可疑 |
-| 6-8 | 低危 | 轻微安全关注 |
-| 9-10 | 中危 | 确认的可疑活动 |
-| 11-13 | 高危 | 攻击进行中 |
-| 14-15 | 严重 | 确认失陷，需立即响应 |
+## 控制误判
 
-## 规则开发流程
+单次管理路径访问设置为等级 3/4 的上下文；重复访问再通过历史关联提示扫描。该规则不保证访问路径各不相同。
 
-### 第一步：了解日志来源
+命令参数出现 `cmd=help` 不直接判为命令注入；脚本上传线索还需写请求方法及上传目录，普通 `POST /index.php` 是反例。URL 规则不检查请求体，不进行通用 URL 解码，也不能证明服务端执行了载荷。
 
-```bash
-# 分析 Apache 日志格式
-192.168.1.1 - - [26/Jun/2026:10:15:30 +0800] "GET /index.html HTTP/1.1" 200 2345
-```
+认证失败后成功可能是用户重试；root 登录、sudo、创建账号和夜间登录也可能是批准的运维。报告必须保留“需核查”的语义，不能把规则等级 14/15 写成“确认失陷”。
 
-### 第二步：确保解码器匹配
+## ATT&CK 与分级
 
-```xml
-<decoder name="apache-access-log">
-    <prematch>^(\d+\.\d+\.\d+\.\d+) </prematch>
-    <regex>...提取模式...</regex>
-    <order>srcip, timestamp, request_method, request_path, status_code, response_size</order>
-</decoder>
-```
+本配置使用 T1190、T1110、T1595、T1078、T1059 等标签组织线索，映射仅提供检索背景，不代表技术已成功执行。静态校验仅检查 ID 格式，不审定整个 ATT&CK 语义。
 
-### 第三步：编写规则条件
+离线队列分级：14-15 为 `critical`，11-13 为 `high`，7-10 为 `medium`，0-6 为 `low`。这是本项目的规则等级排序，不是 CVSS、业务风险评分或 Wazuh 官方统一分类。
 
-使用解码器提取的字段编写匹配条件：
+## 回归流程
 
-```bash
-# 交互式测试
-docker exec -it wazuh-server /var/ossec/bin/wazuh-logtest
-```
+1. 修改最小范围的 decoder / rule。
+2. 执行 `python -S -m anlan validate`，检查清单和警告。
+3. 执行 Python 回归，确认字段与项目契约。
+4. 在 `tests/logtest-cases.json` 增加原生期望，包括 decoder、字段、ID、等级及必要的整段禁止规则。
+5. 在安装相同配置的测试 manager 上运行真实引擎断言，保留 `output/logtest-results.json`。
+6. 独立验证授权环境里的采集和告警链路，再评估上线；不要由测试脚本重启生产服务。
 
-### 第四步：设置告警级别
-
-- 信息收集行为 → 较低级别（7-8）
-- 确认的探测行为 → 中等级别（9-10）
-- 正在进行的利用 → 高级别（11-12）
-- 确认失陷 → 严重级别（13-15）
-
-### 第五步：映射 MITRE ATT&CK
-
-每条规则关联对应的 MITRE 攻击技术，遵循行业标准：
-
-| 规则 | 攻击技术 | MITRE ID |
-|------|---------|----------|
-| SQL 注入 | 利用面向公众的应用 | T1190 |
-| 暴力破解 | 暴力破解 | T1110 |
-| 活动扫描 | 主动扫描 | T1595 |
-| 命令注入 | 命令/脚本执行 | T1059 |
-| 创建账号 | 创建账号 | T1136 |
-
-## 开发的规则类型
-
-### 1. Web 攻击检测
-
-| 规则 ID | 检测类型 | 匹配方式 | 级别 |
-|---------|---------|---------|------|
-| 100001-100004 | SQL 注入 | 关键词、盲注、认证绕过 | 12 |
-| 100010-100014 | 目录扫描 | 敏感路径、聚合频率 | 7-10 |
-| 100040 | XSS | 脚本标签、事件处理器 | 10 |
-| 100041-100042 | LFI/RFI | 文件包含参数 | 9-10 |
-| 100043 | 命令注入 | Shell 元字符 | 12 |
-| 100044 | 文件上传 | 可执行扩展名 | 8 |
-| 100045 | Web 扫描器 | 大量 404 聚合 | 7 |
-
-### 2. 暴力破解检测
-
-| 规则 ID | 检测类型 | 阈值 | 时间窗口 | 级别 |
-|---------|---------|------|---------|------|
-| 100020 | SSH 暴力破解 | 8 次 | 120 秒 | 10 |
-| 100021 | SSH 持续攻击 | 20 次 | 300 秒 | 12 |
-| 100022 | SSH 大规模协同 | 50 次 | 600 秒 | 14 |
-| 100024 | Web 登录爆破 | 15 次 | 180 秒 | 8 |
-| 100025 | FTP 暴力破解 | 10 次 | 180 秒 | 8 |
-
-### 3. 异常活动检测
-
-| 规则 ID | 检测类型 | 匹配条件 | 级别 |
-|---------|---------|---------|------|
-| 100030 | Root SSH 登录 | srcuser=root | 5 |
-| 100031 | 周末登录 | weekday=saturday,sunday | 5 |
-| 100032 | 深夜登录 | time=0:00-6:00 | 5 |
-| 100033 | 用户枚举 | 5 用户名/60 秒 | 7 |
-| 100034 | 权限提升 | sudo 到 root | 5 |
-| 100035 | 创建账号 | useradd/groupadd | 8 |
-
-## 聚合规则
-
-使用 frequency + timeframe 检测时间序列上的攻击模式：
-
-```xml
-<!-- 120 秒内匹配 12 次触发 -->
-<rule id="100014" level="10" frequency="12" timeframe="120">
-    <if_matched_sid>100010</if_matched_sid>
-    <description>检测到目录爆破攻击</description>
-</rule>
-```
-
-## 调试方法
-
-```bash
-# 交互式规则测试
-echo '{"srcip":"203.0.113.5","url":"/login.php?id=1%27OR%271%27=%271"}' | \
-    docker exec -i wazuh-server /var/ossec/bin/wazuh-logtest
-
-# 查看已加载规则列表
-docker exec wazuh-server /var/ossec/bin/wazuh-logtest -l
-
-# 查看实时告警
-docker exec wazuh-server tail -f /var/ossec/logs/alerts/alerts.json
-```
+同一个序列在同一 logtest 会话中输入，以保留关联历史；不同案例使用独立会话。禁止规则命中发生在中间行也必须让反例失败。

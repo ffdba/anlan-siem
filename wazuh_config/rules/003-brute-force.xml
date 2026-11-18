@@ -1,14 +1,30 @@
-﻿<!--
+<!--
   安澜·SIEM 安全监测系统
   规则组：暴力破解检测
   检测类型：SSH 暴力破解（三级阈值）、Web 登录爆破、FTP 爆破
   MITRE ATT&CK: T1110 (Brute Force), T1078 (Valid Accounts)
 -->
-<group name="authentication, brute-force, ssh,">
+<group name="anlan,authentication,brute-force,">
+
+  <rule id="100019" level="5">
+    <if_sid>5710,5716,5760</if_sid>
+    <description>SSH authentication failure retained for Anlan correlation.</description>
+    <group>anlan_ssh_failure,authentication_failed,sshd,</group>
+    <mitre><id>T1110</id></mitre>
+  </rule>
+
+  <rule id="100027" level="5">
+    <if_group>authentication_failed</if_group>
+    <program_name type="pcre2">^(?:vsftpd|proftpd)$</program_name>
+    <description>FTP authentication failure retained for Anlan correlation.</description>
+    <group>anlan_ftp_failure,</group>
+    <mitre><id>T1110</id></mitre>
+  </rule>
 
   <!-- SSH 暴力破解检测 - 8次失败/120秒 -->
   <rule id="100020" level="10" frequency="8" timeframe="120" ignore="60">
-    <if_matched_group>authentication_failed</if_matched_group>
+    <if_matched_group>anlan_ssh_failure</if_matched_group>
+    <same_srcip />
     <description>检测到 SSH 暴力破解 - 同一来源多次登录失败</description>
     <group>authentication,brute_force,ssh,</group>
     <mitre>
@@ -18,7 +34,8 @@
 
   <!-- SSH 暴力破解检测 - 20次失败/300秒（持续性攻击） -->
   <rule id="100021" level="12" frequency="20" timeframe="300" ignore="120">
-    <if_matched_group>authentication_failed</if_matched_group>
+    <if_matched_group>anlan_ssh_failure</if_matched_group>
+    <same_srcip />
     <description>检测到 SSH 暴力破解 - 持续性攻击</description>
     <group>authentication,brute_force,ssh,</group>
     <mitre>
@@ -26,22 +43,25 @@
     </mitre>
   </rule>
 
-  <!-- SSH 暴力破解检测 - 50次失败/600秒（大规模协同攻击） -->
+  <!-- SSH 暴力破解检测 - 单一来源高频失败历史 -->
   <rule id="100022" level="14" frequency="50" timeframe="600" ignore="300">
-    <if_matched_group>authentication_failed</if_matched_group>
-    <description>检测到 SSH 暴力破解 - 大规模协同攻击</description>
+    <if_matched_group>anlan_ssh_failure</if_matched_group>
+    <same_srcip />
+    <description>SSH 同一来源高频认证失败，需核查授权活动</description>
     <group>authentication,brute_force,ssh,</group>
     <mitre>
       <id>T1110</id>
     </mitre>
   </rule>
 
-  <!-- 暴力破解成功后成功登录 - 账号失陷告警 -->
-  <rule id="100023" level="7">
-    <if_sid>100020, 100021, 100022</if_sid>
-    <if_matched_group>authentication_success</if_matched_group>
-    <description>SSH 暴力破解成功 - 检测到账号可能失陷</description>
-    <group>authentication,brute_force,ssh,compromise,</group>
+  <!-- 当前认证成功与同源同用户失败历史关联，仍需人工核查 -->
+  <rule id="100023" level="9" frequency="1" timeframe="300">
+    <if_sid>5715</if_sid>
+    <if_matched_group>anlan_ssh_failure</if_matched_group>
+    <same_srcip />
+    <same_user />
+    <description>SSH 失败历史后同源同用户认证成功，需核查但不证明账号失陷</description>
+    <group>authentication,brute_force,ssh,authentication_context,</group>
     <mitre>
       <id>T1078</id>
     </mitre>
@@ -49,9 +69,8 @@
 
   <!-- Web 登录爆破检测 -->
   <rule id="100024" level="8" frequency="15" timeframe="180" ignore="60">
-    <decoded_as>web-access-log</decoded_as>
-    <field name="url">(?i)(/login|/wp-login|/signin|/auth|/admin/login|/user/login)</field>
-    <match>401|403</match>
+    <if_matched_sid>100026</if_matched_sid>
+    <same_srcip />
     <description>检测到 Web 登录爆破 - 登录接口多次鉴权失败</description>
     <group>authentication,brute_force,web,</group>
     <mitre>
@@ -61,7 +80,8 @@
 
   <!-- FTP 暴力破解检测 -->
   <rule id="100025" level="8" frequency="10" timeframe="180" ignore="60">
-    <if_matched_group>ftp,failed</if_matched_group>
+    <if_matched_sid>100027</if_matched_sid>
+    <same_srcip />
     <description>检测到 FTP 暴力破解攻击</description>
     <group>authentication,brute_force,ftp,</group>
     <mitre>

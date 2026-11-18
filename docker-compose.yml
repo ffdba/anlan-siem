@@ -1,4 +1,7 @@
-﻿services:
+# Incomplete single-node LAB TEMPLATE, not a turnkey deployment.
+# Provision official Wazuh 4.9 TLS, indexer security, credentials and Filebeat first.
+# Host ports are loopback-only. Review listeners before explicitly starting services.
+services:
   # Wazuh Indexer - OpenSearch 搜索引擎集群节点
   wazuh.indexer:
     image: wazuh/wazuh-indexer:4.9.0
@@ -14,7 +17,7 @@
         soft: 65536
         hard: 65536
     ports:
-      - "9200:9200"
+      - "127.0.0.1:9200:9200/tcp"
     volumes:
       - wazuh-indexer-data:/var/lib/wazuh-indexer
     networks:
@@ -29,10 +32,9 @@
       - "WAZUH_MONITORING_ENABLED=true"
       - "INDEXER_URL=https://wazuh-indexer:9200"
     ports:
-      - "55000:55000/tcp"
-      - "1514:1514/udp"
-      - "1515:1515/tcp"
-      - "1516:1516/tcp"
+      - "127.0.0.1:55000:55000/tcp"
+      - "127.0.0.1:15140:1514/tcp"
+      - "127.0.0.1:15150:1515/tcp"
     volumes:
       - wazuh-manager-data:/var/ossec/data
       - ./wazuh_config/decoders:/var/ossec/etc/decoders:ro
@@ -51,7 +53,7 @@
       - "OPENSEARCH_HOSTS=https://wazuh-indexer:9200"
       - "DASHBOARD_SERVER_HOST=0.0.0.0"
     ports:
-      - "443:5601"
+      - "127.0.0.1:9443:5601/tcp"
     volumes:
       - wazuh-dashboard-data:/usr/share/wazuh-dashboard/data
     depends_on:

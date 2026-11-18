@@ -1,19 +1,20 @@
-﻿<!--
+<!--
   安澜·SIEM 安全监测系统
   Nginx 专用解码器
 -->
 <decoder name="nginx-access-log">
-    <prematch>^(\d+\.\d+\.\d+\.\d+) </prematch>
-    <regex>^(\d+\.\d+\.\d+\.\d+) - (\S+) \[([^\]]+)\] "(\S+) (\S+)(?: [^"]*)?" (\d+) (\d+) "([^"]*)" "([^"]*)"</regex>
-    <order>srcip, identity, timestamp, request_method, request_path, status_code, body_bytes, http_referer, user_agent</order>
+    <type>web-log</type>
+    <prematch type="pcre2">^ANLAN_NGINX </prematch>
+    <regex type="pcre2">^ANLAN_NGINX ([0-9a-fA-F:.]+) \S+ \S+ \[([^\]]+)\] "(\S+) (\S+) HTTP/[^"]*" (\d{3}) (\d+|-)(?: "([^"]*)" "([^"]*)")?$</regex>
+    <order>srcip,log_timestamp,http_method,url,status_code,response_size,referer,user_agent</order>
 </decoder>
 
 <decoder name="nginx-error-log">
-    <prematch>\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2} \[error\]</prematch>
+    <prematch type="pcre2">^\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2} \[error\]</prematch>
 </decoder>
 
 <decoder name="nginx-error-log-detail">
     <parent>nginx-error-log</parent>
-    <regex>^(\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}) \[(\w+)\] \d+#\d+: \*\d+ (\S+) .*?client: (\d+\.\d+\.\d+\.\d+), server: (\S+), request: "(\S+) (\S+)", .*?upstream: "(\S+)", .*?host: "(\S+)"</regex>
-    <order>timestamp, log_level, connection_id, srcip, server_name, request_method, request_uri, upstream, host</order>
+    <regex type="pcre2">^(\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}) \[(\w+)\] (\d+)#\d+: \*(\d+) (.*?), client: ([^,]+), server: ([^,]*), request: "(\S+) (\S+)(?: [^"]*)?"(?:, upstream: "([^"]*)")?, host: "([^"]*)"</regex>
+    <order>log_timestamp,log_level,worker_pid,connection_id,error_message,srcip,server_name,http_method,url,upstream,host</order>
 </decoder>

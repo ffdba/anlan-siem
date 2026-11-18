@@ -1,0 +1,120 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "name": "common-clf-fields", "kind": "decoder",
+      "logs": ["ANLAN_WEB 192.0.2.10 - - [19/Nov/2026:09:00:00 +0800] \"GET / HTTP/1.1\" 200 -"],
+      "expected": {"rule_id": "100000", "level": 1, "decoder": "web-access-log", "fields": {"srcip": "192.0.2.10", "http_method": "GET", "url": "/", "status_code": "200"}}
+    },
+    {
+      "name": "apache-combined-fields", "kind": "decoder",
+      "logs": ["ANLAN_APACHE 192.0.2.10 - - [19/Nov/2026:09:00:00 +0800] \"GET / HTTP/1.1\" 200 120 \"-\" \"demo-client\""],
+      "expected": {"rule_id": "100005", "level": 1, "decoder": "apache-access-log", "fields": {"url": "/", "status_code": "200", "user_agent": "demo-client"}}
+    },
+    {
+      "name": "nginx-ipv6-fields", "kind": "decoder",
+      "logs": ["ANLAN_NGINX 2001:db8::10 - - [19/Nov/2026:09:00:00 +0800] \"GET / HTTP/1.1\" 200 120 \"-\" \"demo-client\""],
+      "expected": {"rule_id": "100006", "level": 1, "decoder": "nginx-access-log", "fields": {"srcip": "2001:db8::10", "url": "/", "status_code": "200"}}
+    },
+    {
+      "name": "encoded-union-sqli", "kind": "positive",
+      "logs": ["ANLAN_WEB 203.0.113.10 - - [19/Nov/2026:09:00:00 +0800] \"GET /search?q=UNION%20SELECT%20demo HTTP/1.1\" 403 120"],
+      "expected": {"rule_id": "100001", "level": 12, "decoder": "web-access-log"}
+    },
+    {
+      "name": "encoded-boolean-sqli", "kind": "positive",
+      "logs": ["ANLAN_WEB 203.0.113.10 - - [19/Nov/2026:09:00:00 +0800] \"GET /search?q=%27%20or%201=1 HTTP/1.1\" 403 120"],
+      "expected": {"rule_id": "100002", "level": 12, "decoder": "web-access-log"}
+    },
+    {
+      "name": "encoded-xss", "kind": "positive",
+      "logs": ["ANLAN_WEB 203.0.113.10 - - [19/Nov/2026:09:00:00 +0800] \"GET /search?q=%3Cscript%3Edemo HTTP/1.1\" 403 120"],
+      "expected": {"rule_id": "100040", "level": 10, "decoder": "web-access-log"}
+    },
+    {
+      "name": "encoded-timing-function", "kind": "positive",
+      "logs": ["ANLAN_WEB 203.0.113.10 - - [19/Nov/2026:09:00:00 +0800] \"GET /search?q=sleep%285%29 HTTP/1.1\" 403 120"],
+      "expected": {"rule_id": "100003", "level": 12, "decoder": "web-access-log"}
+    },
+    {
+      "name": "database-metadata-probe", "kind": "positive",
+      "logs": ["ANLAN_WEB 203.0.113.10 - - [19/Nov/2026:09:00:00 +0800] \"GET /search?q=information_schema HTTP/1.1\" 403 120"],
+      "expected": {"rule_id": "100004", "level": 12, "decoder": "web-access-log"}
+    },
+    {
+      "name": "encoded-path-traversal", "kind": "positive",
+      "logs": ["ANLAN_WEB 203.0.113.10 - - [19/Nov/2026:09:00:00 +0800] \"GET /assets/..%2F..%2Fdocs HTTP/1.1\" 403 120"],
+      "expected": {"rule_id": "100012", "level": 7, "decoder": "web-access-log"}
+    },
+    {
+      "name": "encoded-remote-include", "kind": "positive",
+      "logs": ["ANLAN_WEB 203.0.113.10 - - [19/Nov/2026:09:00:00 +0800] \"GET /view?include=https%3A%2F%2Fexample.invalid/demo HTTP/1.1\" 403 120"],
+      "expected": {"rule_id": "100041", "level": 10, "decoder": "web-access-log"}
+    },
+    {
+      "name": "absolute-local-include", "kind": "positive",
+      "logs": ["ANLAN_WEB 203.0.113.10 - - [19/Nov/2026:09:00:00 +0800] \"GET /view?file=/proc/self/environ HTTP/1.1\" 403 120"],
+      "expected": {"rule_id": "100042", "level": 9, "decoder": "web-access-log"}
+    },
+    {
+      "name": "known-command-parameter", "kind": "positive",
+      "logs": ["ANLAN_WEB 203.0.113.10 - - [19/Nov/2026:09:00:00 +0800] \"GET /app?cmd=whoami HTTP/1.1\" 403 120"],
+      "expected": {"rule_id": "100043", "level": 12, "decoder": "web-access-log"}
+    },
+    {
+      "name": "script-resource-write", "kind": "positive",
+      "logs": ["ANLAN_WEB 203.0.113.10 - - [19/Nov/2026:09:00:00 +0800] \"POST /uploads/demo.php HTTP/1.1\" 403 120"],
+      "expected": {"rule_id": "100044", "level": 8, "decoder": "web-access-log"}
+    },
+    {
+      "name": "benign-semicolon-query", "kind": "negative",
+      "logs": ["ANLAN_WEB 192.0.2.10 - - [19/Nov/2026:09:00:00 +0800] \"GET /docs?q=a;b HTTP/1.1\" 200 120"],
+      "expected": {"rule_id": "100000", "level": 1, "decoder": "web-access-log"},
+      "forbidden_rule_ids": ["100043"]
+    },
+    {
+      "name": "benign-union-search", "kind": "negative",
+      "logs": ["ANLAN_WEB 192.0.2.10 - - [19/Nov/2026:09:00:00 +0800] \"GET /search?q=union HTTP/1.1\" 200 120"],
+      "expected": {"rule_id": "100000", "level": 1, "decoder": "web-access-log"}
+    },
+    {
+      "name": "benign-script-post", "kind": "negative",
+      "logs": ["ANLAN_WEB 192.0.2.10 - - [19/Nov/2026:09:00:00 +0800] \"POST /index.php HTTP/1.1\" 200 120"],
+      "expected": {"rule_id": "100000", "level": 1, "decoder": "web-access-log"}
+    },
+    {
+      "name": "benign-command-parameter", "kind": "negative",
+      "logs": ["ANLAN_WEB 192.0.2.10 - - [19/Nov/2026:09:00:00 +0800] \"GET /app?cmd=help HTTP/1.1\" 200 120"],
+      "expected": {"rule_id": "100000", "level": 1, "decoder": "web-access-log"}
+    },
+    {
+      "name": "benign-login-success", "kind": "negative",
+      "logs": ["ANLAN_WEB 192.0.2.10 - - [19/Nov/2026:09:00:00 +0800] \"POST /login.php HTTP/1.1\" 200 120"],
+      "expected": {"rule_id": "100000", "level": 1, "decoder": "web-access-log"}
+    },
+    {
+      "name": "sensitive-path-is-context", "kind": "context",
+      "logs": ["ANLAN_WEB 192.0.2.10 - - [19/Nov/2026:09:00:00 +0800] \"GET /config.yml HTTP/1.1\" 200 120"],
+      "expected": {"rule_id": "100010", "level": 3, "decoder": "web-access-log"}
+    },
+    {
+      "name": "single-login-failure-not-bruteforce", "kind": "negative",
+      "logs": ["ANLAN_WEB 192.0.2.10 - - [19/Nov/2026:09:00:00 +0800] \"POST /login.php HTTP/1.1\" 401 120"],
+      "expected": {"rule_id": "100026", "level": 1, "decoder": "web-access-log"}
+    },
+    {
+      "name": "same-source-404-correlation", "kind": "positive",
+      "repeat": 26, "source_ips": ["203.0.113.10"], "match_scope": "any",
+      "logs": ["ANLAN_WEB {srcip} - - [19/Nov/2026:09:00:00 +0800] \"GET /missing-{sequence} HTTP/1.1\" 404 120"],
+      "expected": {"rule_id": "100045", "level": 7, "decoder": "web-access-log"}
+    },
+    {
+      "name": "distributed-404-not-one-actor", "kind": "negative",
+      "repeat": 26,
+      "forbidden_rule_ids": ["100045"],
+      "source_ips": ["203.0.113.1","203.0.113.2","203.0.113.3","203.0.113.4","203.0.113.5","203.0.113.6","203.0.113.7","203.0.113.8","203.0.113.9","203.0.113.10","203.0.113.11","203.0.113.12","203.0.113.13","203.0.113.14","203.0.113.15","203.0.113.16","203.0.113.17","203.0.113.18","203.0.113.19","203.0.113.20","203.0.113.21","203.0.113.22","203.0.113.23","203.0.113.24","203.0.113.25","203.0.113.26"],
+      "logs": ["ANLAN_WEB {srcip} - - [19/Nov/2026:09:00:00 +0800] \"GET /missing-{sequence} HTTP/1.1\" 404 120"],
+      "expected": {"rule_id": "100046", "level": 1, "decoder": "web-access-log"}
+    }
+  ]
+}

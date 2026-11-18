@@ -1,105 +1,43 @@
-﻿# 安澜·SIEM 安全监测系统 - 架构说明
+# 架构与职责边界
 
-## 系统架构总览
+## 两条独立链路
 
-```
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│                 │     │                 │     │                 │
-│   Wazuh Agent   │────▶│   Wazuh Server  │────▶│  Wazuh Indexer  │
-│   （终端节点）   │ UDP │  （管理器 +     │ SSL │  （OpenSearch）  │
-│                 │ 514 │    Filebeat）    │9200 │                 │
-└─────────────────┘     │                 │     └───────┬─────────┘
-                        │ 自定义解码器     │             │
-                        │   + 检测规则     │             ▼
-                        └─────────────────┘     ┌─────────────────┐
-                                                 │ Wazuh Dashboard │
-                                                 │ （可视化面板）   │
-                                                 └─────────────────┘
+```text
+授权环境日志
+    -> Wazuh Agent / Logcollector
+    -> Wazuh Manager
+         -> decoder 字段提取
+         -> rule 单事件匹配 / 历史关联
+         -> alerts.json
+              -> Filebeat -> Wazuh Indexer -> Wazuh Dashboard
+              -> JSONL 导出 -> anlan 离线研判 -> JSON / Markdown
 ```
 
-## 组件说明
+本仓库维护 decoder / rule 配置以及 `anlan` 离线工具，不实现新的实时检测引擎，也不实现自定义 Web Dashboard。Wazuh 原生界面来自上游项目，是否可用取决于实际部署。
 
-### 1. Wazuh Indexer
-- 基于 OpenSearch（Elasticsearch 7.x 分支）
-- 存储安全事件和告警数据，提供全文搜索能力
-- 提供 REST API 接口供 Dashboard 查询
-- 管理索引生命周期和数据保留策略
+## 检测层
 
-### 2. Wazuh Server（管理器）
-- Wazuh 集群的中央管理节点
-- 包含 **规则引擎**，负责事件分析和告警判定
-- 运行 **自定义解码器** 对日志进行结构化解析
-- 解码器和规则配置文件位置：
-  - `/var/ossec/etc/decoders/` - XML 格式解码器
-  - `/var/ossec/etc/rules/` - XML 格式检测规则
-- Filebeat 将告警数据发送至 Indexer
+访问日志使用受控来源前缀，输出统一 Web 字段。基础规则提供非零等级的历史事件，攻击规则依赖基础 ID；频率规则使用 `if_matched_sid` / `if_matched_group` 与 `same_srcip`，不把所有地址的失败相加。
 
-### 3. Wazuh Dashboard
-- OpenSearch Dashboards（Kibana 基础）可视化平台
-- 预配置的安全监控面板
-- 支持安全事件实时监测和分析
-- 自定义可视化图表
+SSH / FTP 依赖 Wazuh 内置解码器和认证事件。Wazuh 通常按 agent 隔离关联历史，本配置未开启跨 agent 的 `global_frequency`；部署版本和 manager 配置仍需原生验证。
 
-## 数据处理流程
+时间异常规则使用 Wazuh manager 的处理时间语义，不能从访问日志中的 `log_timestamp` 推断其时区行为。
 
-```
-日志采集 → 解码器解析 → 规则引擎评估 → 告警生成 → OpenSearch 索引 → Dashboard 可视化
-```
+## 研判层
 
-### 解码器处理管线
+| 模块 | 职责 |
+| --- | --- |
+| `triage.py` | 输入校验、UTC 归一化、稳定标识、去重、限时策略、事件归并 |
+| `validation.py` | XML 与项目契约清单，不执行 Wazuh |
+| `reporting.py` | JSON 导出、转义后的 Markdown 摘要 |
+| `__main__.py` | `validate`、`demo`、`triage` 命令 |
 
-```
-原始日志（syslog/JSON）
-       │
-       ▼
-  [Prematch 预匹配] ───→ 不匹配 ───→ 使用默认解码器
-       │
-       ▼（匹配）
-  [Regex 正则提取]
-       │
-       ▼
-  [Order 字段映射]
-       │
-       ▼
-  结构化事件（字段名:值）
-```
+归并维度为 manager + agent + actor + category。时间窗口从该批次第一条事件开始，不采用无限延长的滑动链式归并。报告按最高规则等级、唯一事件数和稳定 ID 排序，输出判定理由与输入行号。
 
-### 规则引擎评估流程
+## 运行方式
 
-```
-结构化事件
-       │
-       ▼
-  [规则匹配] ───→ 不匹配 ───→ 仅存储事件
-       │                            │
-       ▼（匹配）                     ▼
-  [生成告警]                  OpenSearch 索引
-       │
-       ▼
-  [MITRE ATT&CK 映射]
-       │
-       ▼
-  [Dashboard 告警展示]
-```
+离线链路仅需 Python 3.10+ 标准库，不连接网络、不启动监听、不调用扫描器、不写回 Wazuh。处理过程将整份输入载入内存，适合有限规模的导出审查，不是流式 SOC 后端。
 
-## 项目目录结构
+原生规则断言需要现有测试 manager 或本地 `wazuh-logtest`；脚本不创建容器。GitHub 上的手动原生工作流另行创建隔离临时容器，未发布宿主端口。
 
-```
-anlan-siem/
-├── docker-compose.yml                # Docker 部署配置
-├── wazuh_config/
-│   ├── decoders/                     # 自定义解码器
-│   │   ├── 001-web-decoder.xml       # 通用 Web 解码器
-│   │   ├── 002-apache-decoder.xml    # Apache 解码器
-│   │   └── 003-nginx-decoder.xml     # Nginx 解码器
-│   └── rules/                        # 自定义检测规则
-│       ├── 001-sql-injection.xml     # SQL 注入检测
-│       ├── 002-directory-scanning.xml # 目录扫描检测
-│       ├── 003-brute-force.xml       # 暴力破解检测
-│       ├── 004-abnormal-login.xml    # 异常登录检测
-│       └── 005-web-attacks.xml       # Web 通用攻击检测
-├── sample_logs/                      # 攻击样本日志
-├── scripts/                          # 部署与测试脚本
-├── docs/                             # 项目文档
-└── README.md                         # 项目说明
-```
+Compose 是实验模板，需要补齐官方 TLS、安全初始化、凭据和 Filebeat 后才能评估端到端链路。只读规则挂载由部署流程管理，不由脚本覆盖或重启。

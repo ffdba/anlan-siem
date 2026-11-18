@@ -1,4 +1,4 @@
-﻿<!--
+<!--
   安澜·SIEM 安全监测系统
   规则组：SQL 注入检测
   检测类型：关键词注入、布尔盲注、时间盲注、认证绕过
@@ -8,8 +8,8 @@
 
   <!-- 检测 URL 中包含 SQL 关键词（SELECT FROM, UNION SELECT, DROP TABLE 等） -->
   <rule id="100001" level="12">
-    <decoded_as>web-access-log</decoded_as>
-    <field name="url">(?i)(\bSELECT\b.*\bFROM\b|\bUNION\b.*\bSELECT\b|\bINSERT\b.*\bINTO\b|\bDELETE\b.*\bFROM\b|\bDROP\b.*\bTABLE\b|\bALTER\b.*\bTABLE\b|\bCREATE\b.*\bTABLE\b|\bEXEC\b|\bEXECUTE\b|\bxp_cmdshell\b)</field>
+    <if_sid>100000,100005,100006</if_sid>
+    <field name="url" type="pcre2">(?i)(?:\bUNION(?:\+|%20|\s)+(?:ALL(?:\+|%20|\s)+)?SELECT\b|\bSELECT(?:\+|%20|\s)+.+(?:\+|%20|\s)+FROM\b|\bDROP(?:\+|%20|\s)+TABLE\b|xp_cmdshell)</field>
     <description>检测到 SQL 注入攻击 - URL 中包含 SQL 关键词</description>
     <mitre>
       <id>T1190</id>
@@ -20,8 +20,8 @@
 
   <!-- 检测布尔盲注/永真条件（or 1=1, and 1=1, ' OR '1'='1） -->
   <rule id="100002" level="12">
-    <decoded_as>web-access-log</decoded_as>
-    <field name="url">(?i)(\bor\b\s+\d+=\d+|\band\b\s+\d+=\d+|\bOR\b\s+'1'='1'|\'--|%27--|\bUNION\b|\%27\bOR\b)</field>
+    <if_sid>100000,100005,100006</if_sid>
+    <field name="url" type="pcre2">(?i)(?:['"]|%27|%22)(?:\+|%20|\s)*(?:or|and)(?:\+|%20|\s)+(?:['"]|%27|%22)?\d+(?:['"]|%27|%22)?(?:=|%3d)(?:['"]|%27|%22)?\d+|(?:'|%27)--</field>
     <description>检测到 SQL 注入攻击 - 布尔盲注/永真条件</description>
     <mitre>
       <id>T1190</id>
@@ -31,8 +31,8 @@
 
   <!-- 检测时间盲注（sleep, waitfor delay, pg_sleep, benchmark） -->
   <rule id="100003" level="12">
-    <decoded_as>web-access-log</decoded_as>
-    <field name="url">(?i)(sleep\(\d+\)|waitfor\s+delay|pg_sleep|benchmark\(|%28sleep%28|%29--)</field>
+    <if_sid>100000,100005,100006</if_sid>
+    <field name="url" type="pcre2">(?i)\b(?:sleep|pg_sleep|benchmark)(?:\(|%28)\d+|waitfor(?:\+|%20|\s)+delay</field>
     <description>检测到 SQL 注入攻击 - 时间盲注</description>
     <mitre>
       <id>T1190</id>
@@ -40,10 +40,10 @@
     <group>web_attack,sql_injection,</group>
   </rule>
 
-  <!-- 检测认证绕过尝试（admin' --, OR 1=1 绕过登录） -->
+  <!-- 检测认证绕过尝试与数据库元信息探测 -->
   <rule id="100004" level="12">
-    <decoded_as>web-access-log</decoded_as>
-    <field name="url">(?i)(\badmin'\b|\'%20OR%20\'1\'=\'1|%22%20OR%20%221%22=%221%22|information_schema|%27%20OR%20%27x%27=%27x%27)</field>
+    <if_sid>100000,100005,100006</if_sid>
+    <field name="url" type="pcre2">(?i)(?:admin(?:'|%27)(?:\+|%20|\s)*--|information_schema|(?:'|%27)(?:\+|%20|\s)+or(?:\+|%20|\s)+(?:'|%27)x(?:'|%27)(?:=|%3d)(?:'|%27)x)</field>
     <description>检测到 SQL 注入攻击 - 认证绕过尝试</description>
     <mitre>
       <id>T1190</id>

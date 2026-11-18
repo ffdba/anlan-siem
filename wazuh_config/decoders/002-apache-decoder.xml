@@ -1,19 +1,20 @@
-﻿<!--
+<!--
   安澜·SIEM 安全监测系统
   Apache HTTP Server 专用解码器
 -->
 <decoder name="apache-access-log">
-    <prematch>^(\d+\.\d+\.\d+\.\d+) </prematch>
-    <regex>^(\d+\.\d+\.\d+\.\d+) \S+ \S+ \[([^\]]+)\] "(\S+) (\S+)(?: [^"]*)?" (\d+) (\d+)$</regex>
-    <order>srcip, timestamp, request_method, request_path, status_code, response_size</order>
+    <type>web-log</type>
+    <prematch type="pcre2">^ANLAN_APACHE </prematch>
+    <regex type="pcre2">^ANLAN_APACHE ([0-9a-fA-F:.]+) \S+ \S+ \[([^\]]+)\] "(\S+) (\S+) HTTP/[^"]*" (\d{3}) (\d+|-)(?: "([^"]*)" "([^"]*)")?$</regex>
+    <order>srcip,log_timestamp,http_method,url,status_code,response_size,referer,user_agent</order>
 </decoder>
 
 <decoder name="apache-error-log">
-    <prematch>(PHP (Fatal|Parse|Warning|Notice)|WordPress|mod_security)</prematch>
+    <prematch type="pcre2">^\[[^\]]+\] \[\w+:\w+\] \[pid </prematch>
 </decoder>
 
 <decoder name="apache-error-log-detail">
     <parent>apache-error-log</parent>
-    <regex>^\[[^ ]+ ([^]]+)\] \[(\w+:\w+)\] \[pid \d+\] \[client (\d+\.\d+\.\d+\.\d+):\d+\] (.*)$</regex>
-    <order>timestamp, module, srcip, error_message</order>
+    <regex type="pcre2">^\[([^\]]+)\] \[([^\]]+)\] \[pid \d+\] \[client ([0-9a-fA-F:.]+):\d+\] (.+)$</regex>
+    <order>log_timestamp,module,srcip,error_message</order>
 </decoder>

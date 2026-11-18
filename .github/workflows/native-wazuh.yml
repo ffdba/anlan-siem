@@ -1,0 +1,42 @@
+name: Native Wazuh Rule Assertions
+
+on:
+  workflow_dispatch:
+
+jobs:
+  native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Create isolated test manager without host ports
+        run: |
+          docker pull wazuh/wazuh-manager:4.9.0
+          docker create --name anlan-native --network none --entrypoint /bin/bash \
+            wazuh/wazuh-manager:4.9.0 -lc \
+            '/var/ossec/bin/wazuh-control start && sleep infinity'
+          docker cp wazuh_config/decoders/. anlan-native:/var/ossec/etc/decoders/
+          docker cp wazuh_config/rules/. anlan-native:/var/ossec/etc/rules/
+          docker start anlan-native
+      - name: Await native analysis socket
+        run: |
+          for attempt in $(seq 1 30); do
+            if docker exec anlan-native test -S /var/ossec/queue/sockets/logtest; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs anlan-native
+          exit 1
+      - run: python scripts/verify-logtest.py --container anlan-native
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-wazuh-evidence
+          path: output/
+      - name: Remove only the test container
+        if: always()
+        run: docker rm -f anlan-native

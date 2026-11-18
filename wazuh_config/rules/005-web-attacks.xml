@@ -1,15 +1,15 @@
-﻿<!--
+<!--
   安澜·SIEM 安全监测系统
   规则组：Web 通用攻击检测
   检测类型：XSS、远程文件包含(RFI)、本地文件包含(LFI)、命令注入、恶意文件上传、Web 扫描
   MITRE ATT&CK: T1059 (Command/Scripting), T1190 (Exploit Public-Facing Application), T1505 (Server Software Component)
 -->
-<group name="web-attacks, xss, rfi, lfi, command-injection,">
+<group name="anlan,web-attacks,">
 
   <!-- XSS 跨站脚本攻击检测 -->
   <rule id="100040" level="10">
-    <decoded_as>web-access-log</decoded_as>
-    <field name="url">(?i)(<script|<iframe|alert\(|onerror=|onload=|onclick=|javascript:|%3Cscript|%3Ciframe|%3Csvg)</field>
+    <if_sid>100000,100005,100006</if_sid>
+    <field name="url" type="pcre2">(?i)(?:&lt;|%3c)(?:script|iframe|svg)\b|(?:onerror|onload|onclick)(?:=|%3d)|javascript(?:\:|%3a)</field>
     <description>检测到跨站脚本攻击 (XSS)</description>
     <mitre>
       <id>T1059</id>
@@ -19,8 +19,8 @@
 
   <!-- 远程文件包含检测（RFI） -->
   <rule id="100041" level="10">
-    <decoded_as>web-access-log</decoded_as>
-    <field name="url">(?i)(include=|require=|include_once=|require_once=)(http|ftp)</field>
+    <if_sid>100000,100005,100006</if_sid>
+    <field name="url" type="pcre2">(?i)[?&amp;](?:include|require|include_once|require_once)=(?:https?|ftp)(?::|%3a)(?:/|%2f){2}</field>
     <description>检测到远程文件包含攻击 (RFI)</description>
     <mitre>
       <id>T1190</id>
@@ -30,8 +30,8 @@
 
   <!-- 本地文件包含检测（LFI） -->
   <rule id="100042" level="9">
-    <decoded_as>web-access-log</decoded_as>
-    <field name="url">(?i)(file=|page=|dir=|document=|folder=|root=|path=|include=|show=|view=)(\.\./|/etc/|/var/|/proc/|\.php)</field>
+    <if_sid>100000,100005,100006</if_sid>
+    <field name="url" type="pcre2">(?i)[?&amp;](?:file|page|path|include|view)=(?:(?:\.\.|%2e%2e)(?:/|%2f)|(?:/|%2f)(?:etc|proc|var)(?:/|%2f))</field>
     <description>检测到本地文件包含攻击 (LFI)</description>
     <mitre>
       <id>T1190</id>
@@ -41,21 +41,21 @@
 
   <!-- 命令注入检测 -->
   <rule id="100043" level="12">
-    <decoded_as>web-access-log</decoded_as>
-    <field name="url">(?i)(\||;|\x60|cmd=|exec=|shell=|system\(|passthru\(|popen\(|`|%0A|%0D|%7C)</field>
+    <if_sid>100000,100005,100006</if_sid>
+    <field name="url" type="pcre2">(?i)(?:[?&amp;](?:cmd|exec|shell)=|\||;|%7c|%3b|%0a)(?:\+|%20|\s)*(?:id|whoami|cat|curl|wget|bash|sh)(?:[&amp;/?]|$|\+|%20|\s)</field>
     <description>检测到命令注入攻击</description>
     <mitre>
-      <id>T1203</id>
+      <id>T1059.004</id>
     </mitre>
     <group>web_attack,command_injection,</group>
   </rule>
 
   <!-- 可疑文件上传检测 -->
   <rule id="100044" level="8">
-    <decoded_as>web-access-log</decoded_as>
-    <field name="http_method">POST|PUT</field>
-    <field name="url">(?i)(\.php|\.jsp|\.asp|\.aspx|\.phtml|\.cgi|\.pl|\.py|\.sh)</field>
-    <description>检测到可疑文件上传 - 可执行脚本扩展名</description>
+    <if_sid>100000,100005,100006</if_sid>
+    <field name="http_method" type="pcre2">^(?:POST|PUT)$</field>
+    <field name="url" type="pcre2">(?i)^/(?:uploads?|files)/[^?]+\.(?:php|jsp|aspx?|phtml|cgi|sh)(?:\?|$)</field>
+    <description>上传目录中的脚本资源写请求，不证明已上传或执行</description>
     <mitre>
       <id>T1505</id>
     </mitre>
@@ -64,8 +64,8 @@
 
   <!-- Web 扫描器检测：同一 IP 大量 404 -->
   <rule id="100045" level="7" frequency="20" timeframe="120">
-    <decoded_as>web-access-log</decoded_as>
-    <field name="status_code">404</field>
+    <if_matched_sid>100046</if_matched_sid>
+    <same_srcip />
     <description>检测到 Web 扫描 - 单 IP 大量 404 响应</description>
     <group>web_attack,reconnaissance,scanning,</group>
     <mitre>
