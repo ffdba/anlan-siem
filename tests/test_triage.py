@@ -161,7 +161,7 @@ class SuppressionTests(unittest.TestCase):
 
 class InputTests(unittest.TestCase):
     def setUp(self):
-        self.row = json.loads((ROOT / "examples" / "alerts.jsonl").read_text().splitlines()[0])
+        self.row = json.loads((ROOT / "examples" / "alerts.jsonl").read_text(encoding="utf-8").splitlines()[0])
 
     def test_semantic_identity_without_native_id_is_stable(self):
         self.row.pop("id")

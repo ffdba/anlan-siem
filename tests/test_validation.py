@@ -59,7 +59,7 @@ class ValidationTests(unittest.TestCase):
         self.assertIsNotNone(re.search(upload, "/uploads/demo.php"))
 
     def test_native_cases_are_explicit_and_refer_to_actual_rules(self):
-        cases = json.loads((ROOT / "tests" / "logtest-cases.json").read_text())["cases"]
+        cases = json.loads((ROOT / "tests" / "logtest-cases.json").read_text(encoding="utf-8"))["cases"]
         ids = {rule["id"] for rule in validate_rules(ROOT)["rules"]}
         self.assertTrue(all(case["expected"]["rule_id"] in ids for case in cases))
         self.assertTrue(all(case["logs"] for case in cases))
@@ -102,7 +102,7 @@ class LogtestParserTests(unittest.TestCase):
         self.assertEqual(self.module.parse_result("tool not found"), {})
 
     def test_native_sequences_preserve_source_isolation(self):
-        cases = json.loads((ROOT / "tests" / "logtest-cases.json").read_text())["cases"]
+        cases = json.loads((ROOT / "tests" / "logtest-cases.json").read_text(encoding="utf-8"))["cases"]
         positive = next(c for c in cases if c["name"] == "same-source-404-correlation")
         negative = next(c for c in cases if c["name"] == "distributed-404-not-one-actor")
         same = self.module.case_logs(positive)

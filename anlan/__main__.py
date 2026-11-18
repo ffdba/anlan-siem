@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -13,6 +14,10 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def main():
+    # Redirected Windows streams may use a legacy code page despite UTF-8 input.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(description="Anlan detection configuration and offline Wazuh triage.")
     commands = parser.add_subparsers(dest="command", required=True)
     validate = commands.add_parser("validate", help="Validate XML and project contracts, without starting Wazuh.")
